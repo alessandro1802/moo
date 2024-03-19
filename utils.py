@@ -42,7 +42,7 @@ def readData(dataPath):
                                     [float(i.split()[1]) for i in data[2:]]))
     return stock_data
 
-def getPredictions(stock_data):
+def getPredictions(stock_data,test_space=200):
     confidences = dict()
     for company_idx, company in enumerate(stock_data):
         # Initialize the likelihood and model
@@ -63,7 +63,7 @@ def getPredictions(stock_data):
             loss = -mll(output, y)
             loss.backward()
             optimizer.step()
-        x_test = torch.linspace(0, 200, 200)
+        x_test = torch.linspace(0, test_space, test_space)
 
         model.eval()
         likelihood.eval()
