@@ -1,5 +1,6 @@
 import os
 import glob
+import pickle
 
 import gpytorch
 import torch
@@ -7,7 +8,7 @@ import numpy as np
 
 
 class Index:
-    def __init__(self,name,runx,runy):
+    def __init__(self, name, runx, runy):
         self.name = name
         self.datax = runx
         self.datay = runy
@@ -17,6 +18,7 @@ class Index:
 
     def __str__(self) -> str:
         return self.name
+
 
 class PredictorGP(gpytorch.models.ExactGP):
     def __init__(self, x_train, y_train, likelihood):
@@ -33,16 +35,21 @@ class PredictorGP(gpytorch.models.ExactGP):
 
 
 def readData(dataPath):
-    stock_data=[]
+    stock_data = []
     for file in glob.glob(os.path.join(dataPath, "*.txt")):
-        with open(file,'r') as rf:
+        with open(file, "r") as rf:
             data = rf.readlines()
-            stock_data.append(Index(data[0],
-                                    [float(i.split()[0]) for i in data[2:]],
-                                    [float(i.split()[1]) for i in data[2:]]))
+            stock_data.append(
+                Index(
+                    data[0],
+                    [float(i.split()[0]) for i in data[2:]],
+                    [float(i.split()[1]) for i in data[2:]],
+                )
+            )
     return stock_data
 
-def getPredictions(stock_data):
+
+def getPredictionsF(stock_data):
     confidences = dict()
     for company_idx, company in enumerate(stock_data):
         # Initialize the likelihood and model
@@ -76,9 +83,34 @@ def getPredictions(stock_data):
 
             company.pred_datax = list(x_test.numpy())
             company.pred_datay = list(observed_pred.mean.numpy())
-        company.increase = (company.pred_datay[-1] - company.datay[-1]) / company.datay[-1]
+        company.increase = (company.pred_datay[-1] - company.datay[-1]) / company.datay[
+            -1
+        ]
     return stock_data, confidences
 
+
+def getPredictions(stock_data, name=""):
+    if name != "":
+        try:
+            with open(f"{name}.pickle", "rb") as handle:
+                a = pickle.load(handle)
+                stock_data = a[0]
+                confidences = a[1]
+                return stock_data, confidences
+        except Exception:
+            stock_data, confidences = getPredictionsF(stock_data)
+            with open(f"{name}.pickle", "wb") as handle:
+                pickle.dump(
+                    [stock_data, confidences], handle, protocol=pickle.HIGHEST_PROTOCOL
+                )
+            return stock_data, confidences
+
+
 def getRiskMatrix(stock_data):
-    return [[np.cov(np.stack((stock_data[i].datay, stock_data[j].datay),
-                             axis=0))[0][1] for i in range(len(stock_data))] for j in range(len(stock_data))]
+    return [
+        [
+            np.cov(np.stack((stock_data[i].datay, stock_data[j].datay), axis=0))[0][1]
+            for i in range(len(stock_data))
+        ]
+        for j in range(len(stock_data))
+    ]
